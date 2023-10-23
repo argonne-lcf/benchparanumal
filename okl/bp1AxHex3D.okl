@@ -27,6 +27,8 @@ SOFTWARE.
 /* Use slice-by-slice kernel for all orders*/
 #if p_N>0
 
+#if OCCA_USE_DPCPP!=1
+
 #if p_N==1
 #define p_NelementsPerBlk 28
 #elif p_N==2
@@ -50,13 +52,51 @@ SOFTWARE.
 #define p_NelementsPerBlk 1
 #endif
 
+#else
+
+#if p_N==1
+#define p_NelementsPerBlk 7
+#elif p_N==2
+#define p_NelementsPerBlk 2
+#elif p_N==3
+#define p_NelementsPerBlk 5
+#elif p_N==4
+#define p_NelementsPerBlk 7
+#elif p_N==5
+#define p_NelementsPerBlk 5
+#elif p_N==6
+#define p_NelementsPerBlk 1
+#elif p_N==7
+#define p_NelementsPerBlk 3
+#elif p_N==8
+#define p_NelementsPerBlk 5
+#elif p_N==9
+#define p_NelementsPerBlk 1
+#elif p_N==10
+#define p_NelementsPerBlk 2
+#elif p_N==11
+#define p_NelementsPerBlk 3
+#elif p_N==12
+#define p_NelementsPerBlk 2
+#else
+// no packing
+#define p_NelementsPerBlk 1
+#endif
+
+#endif
+
 //padding for bank conflicts
-#if p_cubNq==8 || p_cubNq==4
+#if p_cubNq==16 || p_cubNq==12 || p_cubNq==8 || p_cubNq==4
 #define p_pad 1
 #else
 #define p_pad 0
 #endif
 
+#if OCCA_USE_DPCPP==1
+#if p_cubNq==16 
+#define p_pad 1
+#endif
+#endif
 
 @kernel void bp1AxHex3D(const dlong Nelements,
                         @restrict const  dlong  *  elementList,
@@ -91,7 +131,8 @@ SOFTWARE.
               // load pencil of u into register
               const dlong base = a + b*p_Nq + element*p_Np;
 
-              // #pragma unroll p_Nq
+              /* TW */
+#pragma unroll p_Nq
               for(int c=0;c<p_Nq;++c) {
                 const dlong id = GlobalToLocal[base + c*p_Nq*p_Nq];
                 s_q[c][es][b][a] = (id!=-1) ? q[id] : 0.0;
@@ -111,17 +152,20 @@ SOFTWARE.
 
           if(a<p_Nq && c<p_Nq){
 
-            // #pragma unroll p_Nq
+            /* TW */
+#pragma unroll p_Nq
             for(int b=0;b<p_Nq;++b)
               r_q[b] = s_q[c][es][b][a];
 
-            // #pragma unroll p_Nq
+            /* TW */
+	    //#pragma unroll p_Nq
             for(int j=0;j<(p_cubNq+1)/2;++j){
 
               dfloat tmp = 0;
               dfloat tmp2 = 0;
 
-              // #pragma unroll p_Nq
+              /* TW */
+#pragma unroll p_Nq
               for(int b=0;b<p_Nq;++b){
 
                 const dfloat tmpI = s_I[j][b];
@@ -147,17 +191,20 @@ SOFTWARE.
 
           if(c<p_Nq){
 
-            // #pragma unroll p_Nq
+            /* TW */
+#pragma unroll p_Nq
             for(int a=0;a<p_Nq;++a)
               r_q[a] = s_q[c][es][j][a];
 
-            // #pragma unroll p_Nq
+            /* TW */
+	    //#pragma unroll p_Nq
             for(int i=0;i<(p_cubNq+1)/2;++i){
 
               dfloat tmp = 0;
               dfloat tmp2 = 0;
 
-              // #pragma unroll p_Nq
+              /* TW */
+#pragma unroll p_Nq
               for(int a=0;a<p_Nq;++a){
 
                 const dfloat tmpI = s_I[i][a];
@@ -181,11 +228,13 @@ SOFTWARE.
 
           dfloat r_q[p_cubNq];
 
-          // #pragma unroll p_Nq
+          /* TW */
+#pragma unroll p_Nq
           for(int c=0;c<p_Nq;++c)
             r_q[c] = s_q[c][es][j][i];
 
-          // #pragma unroll p_Nq
+          /* TW */
+	  //#pragma unroll p_Nq
           for(int k=0;k<(p_cubNq+1)/2;++k){
 
             dfloat r_GwJ;
@@ -200,7 +249,8 @@ SOFTWARE.
             dfloat tmp = 0;
             dfloat tmp2 = 0;
 
-            // #pragma unroll p_Nq
+            /* TW */
+#pragma unroll p_Nq
             for(int c=0;c<p_Nq;++c){
 
               const dfloat tmpI = s_I[k][c];
@@ -223,16 +273,19 @@ SOFTWARE.
 
           dfloat r_q[p_cubNq];
 
-          // #pragma unroll p_cubNq
+          // TW
+#pragma unroll p_cubNq
           for(int j=0;j<p_cubNq;++j)
             r_q[j] = s_q[k][es][j][i];
 
-          // #pragma unroll p_Nq
+          /* TW */
+	  //#pragma unroll p_Nq
           for(int b=0;b<(p_Nq+1)/2;++b){
             dfloat tmp = 0;
             dfloat tmp2 = 0;
 
-            // #pragma unroll p_cubNq
+            // TW
+#pragma unroll p_cubNq
             for(int j=0;j<p_cubNq;++j){
 
               const dfloat tmpI = s_I[j][b];
@@ -256,17 +309,20 @@ SOFTWARE.
 
           if(b<p_Nq){
 
-            // #pragma unroll p_cubNq
+            // TW
+#pragma unroll p_cubNq
             for(int i=0;i<p_cubNq;++i)
               r_q[i] = s_q[k][es][b][i];
 
-            // #pragma unroll p_cubNq
+            // TW
+	    //#pragma unroll p_cubNq
             for(int a=0;a<(p_Nq+1)/2;++a){
 
               dfloat tmp = 0;
               dfloat tmp2 = 0;
 
-              // #pragma unroll p_cubNq
+	      // TW
+#pragma unroll p_cubNq
               for(int i=0;i<p_cubNq;++i){
 
                 dfloat tmpI = s_I[i][a];
@@ -292,17 +348,20 @@ SOFTWARE.
 
           if(r_e<Nelements && a<p_Nq && b<p_Nq){
 
-            // #pragma unroll p_cubNq
+            //TW
+#pragma unroll p_cubNq
             for(int k=0;k<p_cubNq;++k)
               r_q[k] = s_q[k][es][b][a];
 
-            // #pragma unroll p_cubNq
+            // TW
+	    //#pragma unroll p_cubNq
             for(int c=0;c<(p_Nq+1)/2;++c){
 
               dfloat tmp = 0;
               dfloat tmp2 = 0;
 
-              // #pragma unroll p_cubNq
+              // TW
+#pragma unroll p_cubNq
               for(int k=0;k<p_cubNq;++k){
 
                 const dfloat tmpI = s_I[k][c];
@@ -403,7 +462,8 @@ SOFTWARE.
         for(int i=0;i<p_cubNq;++i;@inner(0)){
           if(i<p_Nq && j<p_Nq){
             r_q=0.0;
-            // #pragma unroll p_Nq
+            /* TW */
+#pragma unroll p_Nq
             for(int m=0;m<p_Nq;++m){
               r_q += s_I[k][m]*s_q[es][m][j][i];
             }
@@ -428,7 +488,8 @@ SOFTWARE.
         for(int i=0;i<p_cubNq;++i;@inner(0)){
           if(j<p_Nq){
             r_q=0.0;
-            // #pragma unroll p_Nq
+            /* TW */
+#pragma unroll p_Nq
             for(int m=0;m<p_Nq;++m){
               r_q += s_I[i][m]*s_q[es][k][j][m];
             }
@@ -457,7 +518,8 @@ SOFTWARE.
           }
 
           r_q=0.0;
-          // #pragma unroll p_Nq
+          /* TW */
+#pragma unroll p_Nq
           for(int m=0;m<p_Nq;++m){
             r_q += s_I[j][m]*s_q[es][k][m][i];
           }
